@@ -3,6 +3,7 @@ from src.openai_wrapper import OpenAIClient
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from databases import Database
 
 
 app = FastAPI()
@@ -26,6 +27,21 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
+# Database URL (replace with your actual database URL)
+DATABASE_URL = "postgresql://myuser:mypassword@localhost/mydb"
+
+# Create a Database instance
+database = Database(DATABASE_URL)
+
+
+@app.on_event("startup")
+async def startup():
+    await database.connect()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await database.disconnect()
 
 
 @app.get("/")
@@ -43,7 +59,6 @@ async def describe_image(image: ImageData):
         raise HTTPException(status_code=400, detail="Invalid image data URL")
 
     res = client.send_camera(image.image_data)
-
     feature, comment = res.split("|")
     feature = feature.strip()
     comment = comment.strip()
@@ -57,21 +72,59 @@ async def describe_image(image: ImageData):
     # except Exception as e:
     #     raise HTTPException(status_code=400, detail=f"Error processing image data: {str(e)}")
 
+
+class ReportData(BaseModel):
+    type: str
+    comment: str
+    image: str
+    latitude: float
+    longitude: float
+    timestamp: float
+
+
+@app.post("/api/submit-report")
+async def submit_report(report: ReportData):
+    try:
+        query = """
+        INSERT INTO infrastructure_reports (type, comment, image, latitude, longitude, timestamp)
+        VALUES (:type, :comment, :image, :latitude, :longitude, :timestamp)
+        """
+        values = {
+            "type": report.type,
+            "comment": report.comment,
+            "image": report.image,
+            "latitude": report.latitude,
+            "longitude": report.longitude,
+            "timestamp": report.timestamp,
+        }
+        await database.execute(query=query, values=values)
+
+        return {"message": "Report created successfully!"}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Error creating report: {str(e)}")
+
+
 class LocationData(BaseModel):
     latitude: float
     longitude: float
 
+
 locations = []
+
 
 @app.post("/api/save-location")
 async def save_location(location: LocationData):
     try:
         locations.append(location)
-        return {"message" : "Location saved successfully", \
-                "location": location }
+        return {"message": "Location saved successfully",
+                "location": location}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error saving location: {str(e)}")
-    
+        raise HTTPException(
+            status_code=500, detail=f"Error saving location: {str(e)}")
+
+
 @app.get("api/locations")
 async def get_locations():
     return locations
