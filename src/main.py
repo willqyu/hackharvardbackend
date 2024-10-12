@@ -1,11 +1,10 @@
-from databases import Database
-
 from src.openai_wrapper import OpenAIClient
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
+from databases import Database
+from typing import List
 
 app = FastAPI()
 client = OpenAIClient()
@@ -58,15 +57,23 @@ async def describe_image(image: ImageData):
         raise HTTPException(status_code=400, detail="Invalid image data URL")
 
     res = client.send_camera(image.image_data)
-    feature, comment = res.split("|")
-    feature = feature.strip()
-    comment = comment.strip()
 
-    # If successful, return a simple confirmation message
-    return {
-        "feature": feature,
-        "message": comment
-    }
+    if "|" in res:
+        feature, comment = res.split("|")
+        feature = feature.strip()
+        comment = comment.strip()
+
+        # If successful, return a simple confirmation message
+        return {
+            "feature": feature,
+            "message": comment
+        }
+
+    else:
+        return {
+            "feature": None,
+            "message": res
+        }
 
     # except Exception as e:
     #     raise HTTPException(status_code=400, detail=f"Error processing image data: {str(e)}")
@@ -80,28 +87,94 @@ class ReportData(BaseModel):
     longitude: float
     timestamp: float
 
+
+class Incident(BaseModel):
+    reports: List[int]
+    latitude: float
+    longitude: float
+    time_created: float
+    latest_updated: float
+
+
 @app.post("/api/submit-report")
 async def submit_report(report: ReportData):
-    try:
+    # try:
+
+    # Insert into all_reports
+    query = """
+        INSERT INTO all_reports (type, comment, image, latitude, longitude, timestamp)
+        VALUES (:type, :comment, :image, :latitude, :longitude, :timestamp)
+        RETURNING id
+    """
+    values = {
+        "type": report.type,
+        "comment": report.comment,
+        "image": report.image,
+        "latitude": report.latitude,
+        "longitude": report.longitude,
+        "timestamp": report.timestamp,
+    }
+    report_id = await database.execute(query=query, values=values)
+
+    # Check for nearby, pre-existing incidents (10 foot radius)
+    radius = 10 / 5280 / 60  # Convert 10 feet to degrees (approximation)
+
+    query = """
+    SELECT id, reports, latitude, longitude FROM incidents
+    WHERE ST_DWithin(
+        ST_SetSRID(ST_MakePoint(longitude, latitude), 4326),
+        ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326),
+        :radius
+    )
+    """
+    values = {
+        "latitude": report.latitude,
+        "longitude": report.longitude,
+        "radius": radius * 1609.34  # Convert degrees to meters
+    }
+    incident = await database.fetch_one(query=query, values=values)
+
+    if incident:
+        # Update existing incident
+        incident_id = incident["id"]
+        reports = incident["reports"] + [report_id]
+        avg_latitude = (
+            incident["latitude"] * len(incident["reports"]) + report.latitude) / len(reports)
+        avg_longitude = (
+            incident["longitude"] * len(incident["reports"]) + report.longitude) / len(reports)
         query = """
-            INSERT INTO all_reports (type, comment, image, latitude, longitude, timestamp)
-            VALUES (:type, :comment, :image, :latitude, :longitude, :timestamp)
+        UPDATE incidents
+        SET reports = :reports, latitude = :latitude, longitude = :longitude, latest_updated = :latest_updated
+        WHERE id = :id
         """
         values = {
-            "type": report.type,
-            "comment": report.comment,
-            "image": report.image,
+            "id": incident_id,
+            "reports": reports,
+            "latitude": avg_latitude,
+            "longitude": avg_longitude,
+            "latest_updated": report.timestamp
+        }
+        await database.execute(query=query, values=values)
+    else:
+        # Create new incident
+        query = """
+        INSERT INTO incidents (reports, latitude, longitude, time_created, latest_updated)
+        VALUES (:reports, :latitude, :longitude, :time_created, :latest_updated)
+        """
+        values = {
+            "reports": [report_id],
             "latitude": report.latitude,
             "longitude": report.longitude,
-            "timestamp": report.timestamp,
+            "time_created": report.timestamp,
+            "latest_updated": report.timestamp
         }
         await database.execute(query=query, values=values)
 
-        return {"message": "Report uploaded successfully!"}
+    return {"message": "Report created successfully!"}
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Error creating report: {str(e)}")
+    # except Exception as e:
+    #     raise HTTPException(
+    #         status_code=400, detail=f"Error creating report: {str(e)}")
 
 
 # class LocationData(BaseModel):
@@ -111,17 +184,16 @@ async def submit_report(report: ReportData):
 
 # locations = []
 
-# @app.post("/api/save-location")
-# async def save_location(location: LocationData):
-#     try:
-#         locations.append(location)
-#         return {
-#             "message": "Location saved successfully",
-#             "location": location
-#         }
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=500, detail=f"Error saving location: {str(e)}")
+
+@app.post("/api/save-location")
+async def save_location(location: LocationData):
+    try:
+        locations.append(location)
+        return {"message": "Location saved successfully",
+                "location": location}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error saving location: {str(e)}")
 
 # @app.get("api/locations")
 # async def get_locations():
