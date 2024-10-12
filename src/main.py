@@ -56,3 +56,22 @@ async def describe_image(image: ImageData):
 
     # except Exception as e:
     #     raise HTTPException(status_code=400, detail=f"Error processing image data: {str(e)}")
+
+class LocationData(BaseModel):
+    latitude: float
+    longitude: float
+
+locations = []
+
+@app.post("/api/save-location")
+async def save_location(location: LocationData):
+    try:
+        locations.append(location)
+        return {"message" : "Location saved successfully", \
+                "location": location }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving location: {str(e)}")
+    
+@app.get("api/locations")
+async def get_locations():
+    return locations
