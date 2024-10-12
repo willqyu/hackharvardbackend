@@ -1,9 +1,10 @@
+from databases import Database
+
 from src.openai_wrapper import OpenAIClient
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from databases import Database
 
 
 app = FastAPI()
@@ -28,7 +29,7 @@ app.add_middleware(
 )
 
 # Database URL (replace with your actual database URL)
-DATABASE_URL = "postgresql://myuser:mypassword@localhost/mydb"
+DATABASE_URL = "postgres://default:JOK5XYs4SlPe@ep-plain-morning-a43ixkme-pooler.us-east-1.aws.neon.tech:5432/verceldb?sslmode=require"
 
 # Create a Database instance
 database = Database(DATABASE_URL)
@@ -86,8 +87,8 @@ class ReportData(BaseModel):
 async def submit_report(report: ReportData):
     try:
         query = """
-        INSERT INTO infrastructure_reports (type, comment, image, latitude, longitude, timestamp)
-        VALUES (:type, :comment, :image, :latitude, :longitude, :timestamp)
+            INSERT INTO all_reports (type, comment, image, latitude, longitude, timestamp)
+            VALUES (:type, :comment, :image, :latitude, :longitude, :timestamp)
         """
         values = {
             "type": report.type,
@@ -99,7 +100,7 @@ async def submit_report(report: ReportData):
         }
         await database.execute(query=query, values=values)
 
-        return {"message": "Report created successfully!"}
+        return {"message": "Report uploaded successfully!"}
 
     except Exception as e:
         raise HTTPException(
@@ -118,8 +119,10 @@ locations = []
 async def save_location(location: LocationData):
     try:
         locations.append(location)
-        return {"message": "Location saved successfully",
-                "location": location}
+        return {
+            "message": "Location saved successfully",
+            "location": location
+        }
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error saving location: {str(e)}")
