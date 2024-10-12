@@ -53,24 +53,12 @@ class ImageData(BaseModel):
     image_data: str
 
 
-class ReportData(BaseModel):
-    type: str
-    comment: str
-    image: str
-    latitude: float
-    longitude: float
-    time_created: str = None
-    last_updated: str = None
-    resolved: bool = False
-
-
 @app.post("/api/describe-image")
 async def describe_image(image: ImageData):
     if not image.image_data.startswith("data:image/"):
         raise HTTPException(status_code=400, detail="Invalid image data URL")
 
     res = client.send_camera(image.image_data)
-
     feature, comment = res.split("|")
     feature = feature.strip()
     comment = comment.strip()
@@ -83,6 +71,39 @@ async def describe_image(image: ImageData):
 
     # except Exception as e:
     #     raise HTTPException(status_code=400, detail=f"Error processing image data: {str(e)}")
+
+
+class ReportData(BaseModel):
+    type: str
+    comment: str
+    image: str
+    latitude: float
+    longitude: float
+    timestamp: float
+
+
+@app.post("/api/submit-report")
+async def submit_report(report: ReportData):
+    try:
+        query = """
+        INSERT INTO infrastructure_reports (type, comment, image, latitude, longitude, timestamp)
+        VALUES (:type, :comment, :image, :latitude, :longitude, :timestamp)
+        """
+        values = {
+            "type": report.type,
+            "comment": report.comment,
+            "image": report.image,
+            "latitude": report.latitude,
+            "longitude": report.longitude,
+            "timestamp": report.timestamp,
+        }
+        await database.execute(query=query, values=values)
+
+        return {"message": "Report created successfully!"}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Error creating report: {str(e)}")
 
 
 class LocationData(BaseModel):
