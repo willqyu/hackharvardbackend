@@ -8,7 +8,6 @@ from pydantic import BaseModel
 
 
 app = FastAPI()
-
 client = OpenAIClient()
 
 # Define allowed origins (you can specify the actual domains you want to allow)
@@ -53,7 +52,6 @@ async def read_root():
 class ImageData(BaseModel):
     image_data: str
 
-
 @app.post("/api/describe-image")
 async def describe_image(image: ImageData):
     if not image.image_data.startswith("data:image/"):
@@ -82,7 +80,6 @@ class ReportData(BaseModel):
     longitude: float
     timestamp: float
 
-
 @app.post("/api/submit-report")
 async def submit_report(report: ReportData):
     try:
@@ -107,27 +104,42 @@ async def submit_report(report: ReportData):
             status_code=400, detail=f"Error creating report: {str(e)}")
 
 
-class LocationData(BaseModel):
-    latitude: float
-    longitude: float
+# class LocationData(BaseModel):
+#     latitude: float
+#     longitude: float
 
 
-locations = []
+# locations = []
+
+# @app.post("/api/save-location")
+# async def save_location(location: LocationData):
+#     try:
+#         locations.append(location)
+#         return {
+#             "message": "Location saved successfully",
+#             "location": location
+#         }
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=500, detail=f"Error saving location: {str(e)}")
+
+# @app.get("api/locations")
+# async def get_locations():
+#     return locations
 
 
-@app.post("/api/save-location")
-async def save_location(location: LocationData):
-    try:
-        locations.append(location)
-        return {
-            "message": "Location saved successfully",
-            "location": location
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error saving location: {str(e)}")
+# accepts POST req w the object details
+# @app.post("/api/generate-body")
+# async def generate_body(report: ReportData):
+#     try:
+#         data = await report.json()
+#         prompt = data.get("prompt", "")
 
+#         # generate letter using send_letter(), return generated test to frontend
+#         generated_letter = await client.send_letter(issue, title, name, address)
+#         return {"body": generated_letter}
 
-@app.get("api/locations")
-async def get_locations():
-    return locations
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Error generating text: {str(e)}")
+    
+
