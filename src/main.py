@@ -177,41 +177,4 @@ async def submit_report(report: ReportData):
     #         status_code=400, detail=f"Error creating report: {str(e)}")
 
 
-# class LocationData(BaseModel):
-#     latitude: float
-#     longitude: float
-
-
-# locations = []
-
-
-@app.post("/api/save-location")
-async def save_location(location: LocationData):
-    try:
-        locations.append(location)
-        return {"message": "Location saved successfully",
-                "location": location}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error saving location: {str(e)}")
-
-# @app.get("api/locations")
-# async def get_locations():
-#     return locations
-
-
-# accepts POST req w the object details
-# @app.post("/api/generate-body")
-# async def generate_body(report: ReportData):
-#     try:
-#         data = await report.json()
-#         prompt = data.get("prompt", "")
-
-#         # generate letter using send_letter(), return generated test to frontend
-#         generated_letter = await client.send_letter(issue, title, name, address)
-#         return {"body": generated_letter}
-
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Error generating text: {str(e)}")
-    
 
