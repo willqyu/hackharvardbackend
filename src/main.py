@@ -1,9 +1,15 @@
 import base64
+import os
 import re
+
+import requests
+from openai import OpenAI
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from dotenv import load_dotenv
 
 app = FastAPI()
 
@@ -24,6 +30,12 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
+load_dotenv()
+OPENAI_KEY = os.getenv("OPENAI_KEY")
+if not OPENAI_KEY:
+    raise Exception("API_KEY not found in .env file")
+
+
 @app.get("/")
 async def read_root():
     return {"Us": "Winners"}
@@ -39,11 +51,40 @@ async def describe_image(image: ImageData):
         raise HTTPException(status_code=400, detail="Invalid image data URL")
 
     try:
+        print(image)
         # Extract base64 data from the data URL
         image_data_base64 = re.sub('^data:image/.+;base64,', '', image.image_data)
-
+        # print(image_data_base64)
         # Decode the base64 string to make sure it's valid
-        _ = base64.b64decode(image_data_base64)
+        decoded_image = base64.b64decode(image_data_base64)
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {OPENAI_KEY}"
+        }
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "What’s in this image?"
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{decoded_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "max_tokens": 300
+        }
+
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
 
         # If successful, return a simple confirmation message
         return {"message": "This is a pothole!"}
