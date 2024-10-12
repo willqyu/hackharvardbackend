@@ -28,6 +28,7 @@ app.add_middleware(
 )
 
 # Database URL (replace with your actual database URL)
+DATABASE_URL = "postgres://default:JOK5XYs4SlPe@ep-plain-morning-a43ixkme-pooler.us-east-1.aws.neon.tech:5432/verceldb?sslmode=require"
 
 # Create a Database instance
 database = Database(DATABASE_URL)
@@ -58,15 +59,23 @@ async def describe_image(image: ImageData):
         raise HTTPException(status_code=400, detail="Invalid image data URL")
 
     res = client.send_camera(image.image_data)
-    feature, comment = res.split("|")
-    feature = feature.strip()
-    comment = comment.strip()
 
-    # If successful, return a simple confirmation message
-    return {
-        "feature": feature,
-        "message": comment
-    }
+    if "|" in res:
+        feature, comment = res.split("|")
+        feature = feature.strip()
+        comment = comment.strip()
+
+        # If successful, return a simple confirmation message
+        return {
+            "feature": feature,
+            "message": comment
+        }
+
+    else:
+        return {
+            "feature": None,
+            "message": res
+        }
 
     # except Exception as e:
     #     raise HTTPException(status_code=400, detail=f"Error processing image data: {str(e)}")
@@ -91,83 +100,83 @@ class Incident(BaseModel):
 
 @app.post("/api/submit-report")
 async def submit_report(report: ReportData):
-    try:
+    # try:
 
-        # Insert into all_reports
-        query = """
+    # Insert into all_reports
+    query = """
         INSERT INTO all_reports (type, comment, image, latitude, longitude, timestamp)
         VALUES (:type, :comment, :image, :latitude, :longitude, :timestamp)
         RETURNING id
-        """
-        values = {
-            "type": report.type,
-            "comment": report.comment,
-            "image": report.image,
-            "latitude": report.latitude,
-            "longitude": report.longitude,
-            "timestamp": report.timestamp,
-        }
-        report_id = await database.execute(query=query, values=values)
+    """
+    values = {
+        "type": report.type,
+        "comment": report.comment,
+        "image": report.image,
+        "latitude": report.latitude,
+        "longitude": report.longitude,
+        "timestamp": report.timestamp,
+    }
+    report_id = await database.execute(query=query, values=values)
 
-        # Check for nearby, pre-existing incidents (10 foot radius)
-        radius = 10 / 5280 / 60  # Convert 10 feet to degrees (approximation)
+    # Check for nearby, pre-existing incidents (10 foot radius)
+    radius = 10 / 5280 / 60  # Convert 10 feet to degrees (approximation)
 
+    query = """
+    SELECT id, reports, latitude, longitude FROM incidents
+    WHERE ST_DWithin(
+        ST_SetSRID(ST_MakePoint(longitude, latitude), 4326),
+        ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326),
+        :radius
+    )
+    """
+    values = {
+        "latitude": report.latitude,
+        "longitude": report.longitude,
+        "radius": radius * 1609.34  # Convert degrees to meters
+    }
+    incident = await database.fetch_one(query=query, values=values)
+
+    if incident:
+        # Update existing incident
+        incident_id = incident["id"]
+        reports = incident["reports"] + [report_id]
+        avg_latitude = (
+            incident["latitude"] * len(incident["reports"]) + report.latitude) / len(reports)
+        avg_longitude = (
+            incident["longitude"] * len(incident["reports"]) + report.longitude) / len(reports)
         query = """
-        SELECT id, reports, latitude, longitude FROM incidents
-        WHERE ST_DWithin(
-            ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
-            ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
-            :radius
-        )
+        UPDATE incidents
+        SET reports = :reports, latitude = :latitude, longitude = :longitude, latest_updated = :latest_updated
+        WHERE id = :id
         """
         values = {
+            "id": incident_id,
+            "reports": reports,
+            "latitude": avg_latitude,
+            "longitude": avg_longitude,
+            "latest_updated": report.timestamp
+        }
+        await database.execute(query=query, values=values)
+    else:
+        # Create new incident
+        query = """
+        INSERT INTO incidents (reports, latitude, longitude, time_created, latest_updated)
+        VALUES (:reports, :latitude, :longitude, :time_created, :latest_updated)
+        """
+        values = {
+            "reports": [report_id],
             "latitude": report.latitude,
             "longitude": report.longitude,
-            "radius": radius * 1609.34  # Convert degrees to meters
+            "time_created": report.timestamp,
+            "latest_updated": report.timestamp
         }
-        incident = await database.fetch_one(query=query, values=values)
+        await database.execute(query=query, values=values)
 
-        if incident:
-            # Update existing incident
-            incident_id = incident["id"]
-            reports = incident["reports"] + [report_id]
-            avg_latitude = (
-                incident["latitude"] * len(incident["reports"]) + report.latitude) / len(reports)
-            avg_longitude = (
-                incident["longitude"] * len(incident["reports"]) + report.longitude) / len(reports)
-            query = """
-            UPDATE incidents
-            SET reports = :reports, latitude = :latitude, longitude = :longitude, latest_updated = :latest_updated
-            WHERE id = :id
-            """
-            values = {
-                "id": incident_id,
-                "reports": reports,
-                "latitude": avg_latitude,
-                "longitude": avg_longitude,
-                "latest_updated": report.timestamp
-            }
-            await database.execute(query=query, values=values)
-        else:
-            # Create new incident
-            query = """
-            INSERT INTO incidents (reports, latitude, longitude, time_created, latest_updated)
-            VALUES (:reports, :latitude, :longitude, :time_created, :latest_updated)
-            """
-            values = {
-                "reports": [report_id],
-                "latitude": report.latitude,
-                "longitude": report.longitude,
-                "time_created": report.timestamp,
-                "latest_updated": report.timestamp
-            }
-            await database.execute(query=query, values=values)
+    return {"message": "Report created successfully!"}
 
-        return {"message": "Report created successfully!"}
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Error creating report: {str(e)}")
+    # except Exception as e:
+    #     raise HTTPException(
+    #         status_code=400, detail=f"Error creating report: {str(e)}")
 
 
 class LocationData(BaseModel):
