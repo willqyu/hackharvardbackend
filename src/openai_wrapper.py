@@ -86,6 +86,15 @@ class OpenAIClient:
             oImage(image_data)
         )
 
+    def tweet_sentiment(self, tweet: str):
+        prompt = f"""
+            I am giving you a tweet from a person commenting on issues in their local area. You will give me a score of the sentiment between 
+            1 - 10, where 1 is very negative, 10 is very positive, and 5 is neutral. Return only a single number with nothing else. 
+        """
+        return self.send_message(
+            oMessage(prompt),
+            oMessage(tweet)
+        )
 
 if __name__ == "__main__":
     # Example usage

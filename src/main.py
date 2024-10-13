@@ -1,3 +1,5 @@
+import os
+
 from src.openai_wrapper import OpenAIClient
 
 from fastapi import FastAPI, HTTPException
@@ -196,7 +198,8 @@ async def get_letter(report: ReportData):
 
 
 # Load tweets from the file
-with open("./src/tweets.txt", "r", encoding="utf8") as file:
+file_path = os.path.join("data", "tweets.txt")
+with open(file_path, "r", encoding="utf8") as file:
     tweets = file.read().split(" |\n")
 
 # Create a counter to keep track of the current tweet index
@@ -207,7 +210,18 @@ async def get_next_tweet():
     tweet = tweets[tweet_index % len(tweets)]
     tweet_index += 1
 
-    return {"tweet": tweet}
+    return {"message": tweet}
+
+
+class TweetData(BaseModel):
+    message: str
+
+
+@app.post("/api/tweet-sentiment")
+async def get_tweet_sentiment(message: TweetData):
+    tweet = message.message
+    res = client.tweet_sentiment(tweet)
+    return {"sentiment": res}
 
 
 class LocationData(BaseModel):
