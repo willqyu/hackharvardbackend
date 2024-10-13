@@ -63,7 +63,7 @@ class OpenAIClient:
         else:
             return res["choices"][0]["message"]["content"]
 
-    def send_letter(self, issue: str, title: str, name: str):
+    def write_letter(self, issue: str, title: str, name: str):
         prompt = f"""
             You are a helpful assistant that assists in writing letters to local politicians. Please write a formal, concise, 2-paragraph letter addressing the issue of {issue}. Emphasize the seriousness of the problem and how it poses potential harm to municipal citizens like myself. Highlight why a problem like {issue} would be . 
 
@@ -93,4 +93,4 @@ if __name__ == "__main__":
     title = "Senator"
     name = "Jane Doe"
 
-    OpenAIClient().send_letter(issue, title, name)
+    OpenAIClient().write_letter(issue, title, name)

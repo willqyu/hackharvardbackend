@@ -179,6 +179,37 @@ async def submit_report(report: ReportData):
     #         status_code=400, detail=f"Error creating report: {str(e)}")
 
 
+@app.post("/api/get-letter")
+async def get_letter(report: ReportData):
+
+    letter = client.write_letter(
+        issue=report.type,
+        title="Representative",
+        name="Ayanna Pressley"
+    )
+    subject, body = letter.split('\n', 1)
+
+    return {
+        "subject": subject,
+        "message": body
+    }
+
+
+# Load tweets from the file
+with open("./src/tweets.txt", "r", encoding="utf8") as file:
+    tweets = file.read().split(" |\n")
+
+# Create a counter to keep track of the current tweet index
+tweet_index = 0
+@app.get("/api/tweet")
+async def get_next_tweet():
+    global tweet_index
+    tweet = tweets[tweet_index % len(tweets)]
+    tweet_index += 1
+
+    return {"tweet": tweet}
+
+
 class LocationData(BaseModel):
     latitude: float
     longitude: float
