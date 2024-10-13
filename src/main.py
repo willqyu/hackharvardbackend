@@ -9,7 +9,6 @@ from databases import Database
 from typing import List
 
 app = FastAPI()
-
 client = OpenAIClient()
 
 # Define allowed origins (you can specify the actual domains you want to allow)
@@ -53,7 +52,6 @@ async def read_root():
 
 class ImageData(BaseModel):
     image_data: str
-
 
 @app.post("/api/describe-image")
 async def describe_image(image: ImageData):
@@ -229,20 +227,3 @@ class LocationData(BaseModel):
     longitude: float
 
 
-locations = []
-
-
-@app.post("/api/save-location")
-async def save_location(location: LocationData):
-    try:
-        locations.append(location)
-        return {"message": "Location saved successfully",
-                "location": location}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error saving location: {str(e)}")
-
-
-@app.get("api/locations")
-async def get_locations():
-    return locations
